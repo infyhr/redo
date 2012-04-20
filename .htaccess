@@ -1,0 +1,18 @@
+# Hide directory loads and disable Apache's Multiviews.
+Options -Indexes -MultiViews
+
+# We need the rewrite engine...
+RewriteEngine on
+
+# Enable RewriteBase if for some odd reason rewriting doesn't work.
+# RewriteBase /~someone/redo
+
+# The conditions follow:
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ([^.]*)(.*) index.php?route=$1  [QSA,L]
+RewriteRule ($|/)       index.php           [QSA,L]
+
+# This just adds GZIP if possible.
+<ifmodule mod_deflate.c>
+AddOutputFilterByType DEFLATE text/html text/xml text/css application/javascript
+</ifmodule>
