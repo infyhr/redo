@@ -240,7 +240,7 @@ Class redo {
      * @param $url string The URL you'd like to redirect to (if any). 
      * */
     public static function throw_http($http_code = 301, $url = NULL) {
-        header('HTTP/1.1 ' . $http_code . ' ' . self::$http_codes[$ttp_code]);
+        header('HTTP/1.1 ' . $http_code . ' ' . self::$http_codes[$http_code]);
         if(!is_null($url)) {
             header('Location: ' . $location);
         }
