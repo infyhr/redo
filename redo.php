@@ -19,11 +19,13 @@ Class redo {
      * @param $options array The arguments you want to pass.
      * */
     public static function initialize($options = array()) {
-        if(empty($options)) { return false; } // Can't continue.
+        #if(empty($options)) { return false; } // Can't continue.
         
         // Adds up all the options to vars.
-        foreach($options as $k => $v) {
-            self::$vars[$k] = $v;
+        if(!empty($options)) {
+            foreach($options as $k => $v) {
+                self::$vars[$k] = $v;
+            }
         }
         
         // Sets debug.
@@ -181,7 +183,7 @@ Class redo {
      * @param $var_name string Name of the variable.
      * */
     public static function get($var_name) {
-        return self::$vars[$var_name];
+        if(array_key_exists($var_name, self::$vars)) { return self::$vars[$var_name]; }
     }
     
     /**
@@ -274,7 +276,9 @@ Class redo {
      * @param $construct_pass mixed Value passed to the constructor.
      * */
     public static function register($class_name, $construct_pass = '') {
-        self::$vars[$class_name] = new $class_name($construct_pass);
+        #self::$vars[$class_name] = new $class_name($construct_pass);
+        $reflect = new ReflectionClass($class_name);
+        self::$vars[$class_name] = $reflect->newInstanceArgs($construct_pass);
     }
     
     

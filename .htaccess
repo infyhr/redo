@@ -7,6 +7,11 @@ RewriteEngine on
 # Enable RewriteBase if for some odd reason rewriting doesn't work.
 # RewriteBase /~someone/redo
 
+# Allow certain files / folders
+RewriteCond $0 ^(robots.txt|humans.txt|views/) [OR]
+RewriteCond %{ENV:REDIRECT_STATUS} 200
+RewriteRule .* - [L]
+
 # The conditions follow:
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ([^.]*)(.*) index.php?route=$1  [QSA,L]
