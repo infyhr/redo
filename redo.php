@@ -108,6 +108,9 @@ Class redo {
                 // The second parameter, the function is in a class!
                 if(is_array($func)) {
                     $class_called = new $func[0];
+                    if(!$class_called) { self::respond(500); } // An error occured, we cannot load the class.
+
+                    // This is quite obvious, 404 if the class does not exist.
                     if(!method_exists($class_called, $func[1])) { self::respond(404); }
                     
                     // Is it perhaps a private function?
