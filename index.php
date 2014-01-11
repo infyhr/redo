@@ -1,12 +1,11 @@
 <?php
 require_once './redo.php';
-redo::initialize();
 
-
-redo::route(array(
-    '/' =>  'index'
+$redo = new redo(array(
+    '/'                      =>  'index',
+    'user/([0-9]*)/profile'  =>  function() { echo 'works'; },
 ));
 
-function index() { echo 'Hello World.'; }
-
-redo::run();
+function index() {
+    echo 'Hello, World!';
+}
