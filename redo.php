@@ -1,21 +1,29 @@
 <?php
+namespace redo;
 
 class redo {
     public $options, $vars;
     public $unmatched, $routes;
+    public $request;
     public $http_codes = array();
 
     public function __construct($routes = array(), $options = array()) {
         $this->routes  = $routes;
         $this->options = $options;
+        $this->request = $_SERVER['REQUEST_METHOD'];
 
-        if(!$routes || !is_array($this->routes)) { throw new Exception('Invalid array of routes supplied.'); }
+        //if(!$routes || !is_array($this->routes)) { throw new \Exception('Invalid array of routes supplied.'); }
 
         // Merge $options into $vars which can be later on used everywhere within redo
         if(isset($this->options)) {
             foreach($this->options as $k => $v) {
                 $this->vars[$k] = $v;
             }
+        }
+
+        // Find out what kind of an HTTP request we are dealing with.
+        if(strtolower($this->request) == 'xmlhttprequest') {
+            $this->request = 'AJAX';
         }
 
         // Define some HTTP Status Codes.
@@ -57,10 +65,10 @@ class redo {
             418 =>  'I\'m a teapot',
         ];
 
-        $this->router(); // Call the router!
+        return $this;
     }
 
-    private function router() {
+    public function route() {
         // For each of the routes...
         $this->unmatched = 0;
         foreach($this->routes as $k => $v) {
@@ -71,43 +79,36 @@ class redo {
                 unset($args[0]); // We don't need the first one, it's just the function name.
                 $args = array_values($args); // Reset the keys since they are going to be changed when you call unset.
 
+                // Sometimes when a trailing slash is added onto the end of the URL, the arguments array ends up with a final empty entry.
+                // The following codes fixes this annoyance:
+                if(empty(end($args))) { array_pop($args); }
+
                 // Check out the second parameter.
                 switch($v) {
                     case is_array($v): // It's an array which means it calls an object -> ('class', 'function', 'params');.
-                        if(!isset($v[1])) { throw new Exception('Expected a function next to the class "' . $v[0] . '".'); }
+                        if(!isset($v[1])) { throw new \Exception('Expected a function next to the class "' . $v[0] . '".'); }
                         $class = new $v[0]; // Try to init the class.
 
                         // Unable to init the class.
-                        if(!$class) { throw new Exception('Unable to init the class "' . $class . '"');  }
+                        if(!$class) { throw new \Exception('Unable to init the class "' . $class . '"');  }
 
-                        // If the method does not exists, we should probably throw a 404 rather than an Exception.
+                        // If the method does not exists, we should probably throw a 404 rather than an \Exception.
                         if(!method_exists($class, $v[1])) { $this->http(404); }
 
                         // Same goes here, only for a private function.
                         if(!in_array($v[1], get_class_methods($class))) { $this->http(404); }
 
-                        // Check if it accepts any arguments and then call the corresponding function.
-                        if(isset($v[2])) { // It does.
-                            $class->$v[1]($v[2]);
-                        }else {
-                            $class->$v[1]; // It doesn't.
-                        }
+                        // Everything works out fine -- call it.
+                        @$class->$v[1]($args);
                         break;
                     case is_callable($v):
-                        echo 'callable';
-                        break;
-                    case is_string($v):
-                        echo 'string';
+                        // Call the function and pass the args.
+                        $v($args);
                         break;
                     default:
-                        echo '???';
+                        $this->http(404);
                         break;
                 }
-                // if(is_callable($v)) {
-                //     $v();
-                // }
-                // var_dump($res);
-                // var_dump($k);
             }else { $this->unmatched++; }
         }
 
@@ -115,17 +116,16 @@ class redo {
     }
 
     private function http($code) {
-        echo $code;
         // Set the header:
         if(!array_key_exists($code, $this->http_codes)) { return false; }
         header($_SERVER['SERVER_PROTOCOL'] . ' ' . $code . ' ' . $this->http_codes[$code], true, $code);
         // Try to load the appropriate view
-        // $location = './views/' . $code . '.php'
-        $location = (isset($this->vars['view.dir'])) ? $this->vars['view.dir'] . $code . '.php' : './views/' . $code . '.php';
-        if(file_exists($location) && is_readable($locaton)) {
-            require_once $locaton;
+        $location = (isset($this->vars['view.dir'])) ? $this->vars['view.dir'] . $code . '.php' : './views/responses/' . $code . '.php';
+        if(file_exists($location) && is_readable($location)) {
+            require_once $location; // Load it here...
         }else {
-            echo 'does not exists finish this later.';
+            // Fatal
+            throw new \Exception('The view file "' . $code . '.php" in the view.dir does not exists.');
         }
     }
 
