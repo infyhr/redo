@@ -1,2 +1,4 @@
+/vendor
+composer.lock
 redo_old.php
 test.php
