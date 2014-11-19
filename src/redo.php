@@ -68,7 +68,7 @@ class redo {
     }
 
     public function run() {
-        $this->unmatched = 0; // Store unmatched routes. Before the foreach it's at 0.
+        $this->unmatched = 0; // Store the number of unmatched routes. Before the foreach it's at 0.
 
         foreach($this->routes as $route => $entity) { // Foreach of the registered routes...
             $_GET['route'] = (!isset($_GET['route'] || $_GET['route'] == '') ? '/' : $_GET['route']); // If there is no route set then default to '/' which mimics home.
@@ -133,6 +133,15 @@ class redo {
         }else { throw new \Exception('Unable to unregister "' . $route . '"'); }
 
         return $this; // chainable.
+    }
+
+    public function throw_http($code) {
+        if(!in_array($code, $this->http_codes)) return false; // if it's not in the array then return false
+        // Now all we need to do is just set the header and it's gg
+        if(header(sprintf('HTTP/1.1 %d %s', $code, $this->http_codes[$code]))) {
+            // try to load the view if there is any.
+            // infy@A780LM-M: Make sure the view is loaded here if it exists else just return nothing or some default generic view template?
+        }
     }
 }
 
