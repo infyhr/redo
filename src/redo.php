@@ -5,10 +5,12 @@ class redo {
     public $routes, $vars; // Holds routes and variables.
     public $request_method; // Holds the $_SERVER['REQUEST_METHOD'].
     public $unmatched; // Number of unmatched routes so far.
+    public $path; // Holds the complete absolute path. Used for view loading.
 
     public function __construct($routes = array(), $options = array()) {
         $this->routes         = $routes;
         $this->request_method = $_SERVER['REQUEST_METHOD'];
+        $this->path           = realpath(dirname(__FILE__));
 
         // Each one of the options element is actually a variable itself.
         if(!isset($options)) { throw new \Exception('Cannot continue without an options array.'); }
@@ -70,8 +72,9 @@ class redo {
     public function run() {
         $this->unmatched = 0; // Store the number of unmatched routes. Before the foreach it's at 0.
 
+        if(empty($this->routes)) { $this->throw_http(404); return; } // No routes added, call 404 and return.
         foreach($this->routes as $route => $entity) { // Foreach of the registered routes...
-            $_GET['route'] = (!isset($_GET['route'] || $_GET['route'] == '') ? '/' : $_GET['route']); // If there is no route set then default to '/' which mimics home.
+            $_GET['route'] = ($_GET['route'] == FALSE || $_GET['route'] == '') ? '/' : $_GET['route']; // If there is no route set then default to '/' which mimics home.
 
             if(preg_match('#^' . $route . '/?$#i', $_GET['route'], $res)) { // The regex.
                 $args = explode('/', $_GET['route']); // Get all the arguments.
@@ -93,25 +96,31 @@ class redo {
 
                     case is_string($entity):
                         // It's a string, meaning it's just a function (not in a class)
-                        if(is_callable($entity)) { @$entity($args); }
+                        if(is_callable($entity)) { @$entity($args);return; }
+                        throw new \Exception('Unable to call function "' . $entity . '" within the global namespace.');
                     break;
 
                     case is_array($entity):
                         // The number of array elements must be 2.
                         if(count($entity) != 2) { throw new \Exception('The number of arguments needed to call a method for route ' . $route . ' is uneven to 2'); }
 
-                        // Try to initiate the class.
-                        $obj = new $entity[0]; // infy@A780LM-M: check whether this actually works with namespaces lol otherwise bye bye psr-4
-                        if(!$obj) { throw new \Exception('Unable to initiate the object for the route ' . $route); }
+                        // Now check whether if it's static or not.
+                        // infy@A780LM-M: Maybe add the same for final methods?
+                        try {
+                            $reflector = new \ReflectionMethod($entity[0], $entity[1]); // infy@A780LM-M: works with static.
+                        }catch(\ReflectionException $e) { throw new \Exception($e); } // rethrow? This is probably bad practice...
+                        if($reflector->isStatic()) $is_static = true;
 
-                        // Does the function even exist in the class?
-                        if(!method_exists($obj, $entity[1])) { /* infy@A780LM-M: TODO 404 here */ }
+                        // It exists, ok, is it private (callable?). If so, throw a 404.
+                        if(!in_array($entity[1], get_class_methods($entity[0]))) { $this->throw_http(404); }
 
-                        // It exists, ok, is it private (callable?)
-                        if(!in_array($entity[1], get_class_methods($obj))) { /* infy@A780LM-M: TODO: 404 here */ }
-
-                        // Seems all is well... just run it?
-                        @$obj->$entity[1]($args);
+                        // All is well, then.
+                        if(!$is_static) {
+                            $obj = new $entity[0];
+                            @$obj->$entity[1]($args);
+                        }else {
+                            @$entity[0]::$entity[1]($args);
+                        }
                     break;
 
                     case is_callable($entity):
@@ -122,8 +131,8 @@ class redo {
             }else { $this->unmatched++; } // Increment the unmatched by 1.
         }
 
-        // If it itered through every possible case and did not match any then stop.
-        if(count($this->routes) == $this->unmatched) { /* infy@A780LM-M: 404 HERE */ }
+        // If it itered through every possible case and did not match any then stop and throw a 404.
+        if(count($this->routes) == $this->unmatched) { $this->throw_http(404); }
     }
 
     public function unregister($route) {
@@ -136,12 +145,32 @@ class redo {
     }
 
     public function throw_http($code) {
-        if(!in_array($code, $this->http_codes)) return false; // if it's not in the array then return false
-        // Now all we need to do is just set the header and it's gg
-        if(header(sprintf('HTTP/1.1 %d %s', $code, $this->http_codes[$code]))) {
-            // try to load the view if there is any.
-            // infy@A780LM-M: Make sure the view is loaded here if it exists else just return nothing or some default generic view template?
+        if(!in_array($code, array_keys($this->http_codes))) return false; // if it's not in the array then return false
+        // Now all we need to do is just set the header
+        header(sprintf('HTTP/1.1 %d %s', $code, $this->http_codes[$code]));
+        $http_err_file = $this->path . '/views/http/' . $code . '.php';
+        if(file_exists($http_err_file) && is_readable($http_err_file)) { // Try to load the http error template.
+            // Load!
+            echo $this->render($http_err_file);
+        }else {
+            // Throw an exception about the error itself and then let the user handle the way they want to handle exceptions.
+            throw new \Exception(sprintf('HTTP/1.1 %d %s', $code, $this->http_codes[$code]));
         }
+    }
+
+    // You shouldn't probably use this but like blade standalone instance for rendering proper templates.
+    // Generally, this should be only used for throw_http.
+    public function render($file, $vars = array()) {
+        if(!file_exists($file) || !is_readable($file)) { throw new \Exception('Unable to read the template file ("' . $file . '")'); }
+
+        // Start the buffering.
+        ob_start();
+            if(!empty($vars)) extract($vars); // $vars must be a 2d array.
+            require_once $file; // Require the file.
+            $output = ob_get_contents(); // Grab the output
+        ob_end_clean();
+
+        return $output; // Should, of course, be echoed.
     }
 }
 
